@@ -93,7 +93,7 @@ const char *command_to_string(enum cmd cmd)
 	}
 }
 
-static int panasonic_send_mqtt(const struct panasonic_command *cmd, const char *topic, int qos, int retain)
+static int panasonic_send_mqtt(const struct panasonic_command *cmd)
 {
 	const int maxlen = 100;
 	char *s = malloc(maxlen);
@@ -108,7 +108,7 @@ static int panasonic_send_mqtt(const struct panasonic_command *cmd, const char *
 
 	if (len > 0 && len < maxlen) {
 		ESP_LOGI(TAG, "Publish \"%s\"", s);
-		ret = mqtt_pub(topic, s, len, qos, retain);
+		ret = mqtt_pub(cmd->cmd == CMD_STATE ? "" : "/command", s, len, 0, 0);
 	} else {
 		ESP_LOGE(TAG, "Buffer too small, needed %d bytes", len);
 		ret = -1;
@@ -122,7 +122,7 @@ static int panasonic_send_mqtt(const struct panasonic_command *cmd, const char *
 static void panasonic_send_state(void)
 {
 	panasonic_transmit(&state);
-	panasonic_send_mqtt(&state, "panasonic/state", 0, 0);
+	panasonic_send_mqtt(&state);
 }
 
 void panasonic_set_state(const struct panasonic_command *cmd)
@@ -142,19 +142,11 @@ void panasonic_set_temperature(int temperature)
 	xSemaphoreGive(state_mutex);
 }
 
-void panasonic_set_mode(enum mode mode)
+void panasonic_set_mode(bool power, enum mode mode)
 {
 	xSemaphoreTake(state_mutex, portMAX_DELAY);
+	state.on = power;
 	state.mode = mode;
-	state.no_time = true;
-	panasonic_send_state();
-	xSemaphoreGive(state_mutex);
-}
-
-void panasonic_set_power(bool on)
-{
-	xSemaphoreTake(state_mutex, portMAX_DELAY);
-	state.on = on;
 	state.no_time = true;
 	panasonic_send_state();
 	xSemaphoreGive(state_mutex);

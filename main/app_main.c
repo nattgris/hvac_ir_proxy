@@ -35,6 +35,7 @@
 #include "ota.h"
 
 static const char TAG[] = "APP";
+static char device_id[6 * 2 + 1];
 
 static void set_state(const struct panasonic_command *cmd, void *priv)
 {
@@ -43,6 +44,9 @@ static void set_state(const struct panasonic_command *cmd, void *priv)
 
 void app_main(void)
 {
+	uint8_t mac[6];
+	int len = 0;
+
 	ESP_LOGI(TAG, "Startup..");
 	ESP_LOGI(TAG, "Free memory: %d bytes", esp_get_free_heap_size());
 	ESP_LOGI(TAG, "IDF version: %s", esp_get_idf_version());
@@ -65,8 +69,13 @@ void app_main(void)
 	 */
 	ESP_ERROR_CHECK(example_connect());
 
+	ESP_ERROR_CHECK(esp_efuse_mac_get_default(mac));
+	for (size_t i = 0; i < sizeof(mac); i++) {
+		len += snprintf(device_id + len, sizeof(device_id) - len, "%02x", mac[i]);
+	}
+
 	panasonic_state_init();
 	panasonic_ir_init(set_state, NULL);
-	mqtt_init();
+	mqtt_init(device_id);
 	ota_init(CONFIG_FIRMWARE_UPGRADE_URL);
 }
